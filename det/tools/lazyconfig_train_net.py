@@ -64,6 +64,15 @@ def do_train(args, cfg):
     logger = logging.getLogger("detectron2")
     logger.info("Model:\n{}".format(model))
     model.to(cfg.train.device)
+    
+    # Freeze backbone if specified in config
+    if hasattr(cfg.model, 'backbone') and hasattr(cfg.model.backbone, 'net'):
+        if hasattr(cfg.model.backbone.net, 'freeze_backbone') and cfg.model.backbone.net.freeze_backbone:
+            logger.info("Freezing backbone layers for fine-tuning...")
+            for name, param in model.backbone.named_parameters():
+                param.requires_grad = False
+                logger.info(f"Frozen: {name}")
+            logger.info("Backbone frozen. Only detection head will be trained.")
 
     cfg.optimizer.params.model = model
     optim = instantiate(cfg.optimizer)

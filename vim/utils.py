@@ -243,21 +243,61 @@ def interpolate_pos_embed(model, state_dict):
     pos_embed_checkpoint = state_dict['pos_embed']
     embedding_size = pos_embed_checkpoint.shape[-1]
     num_patches = model.patch_embed.num_patches
-    num_extra_tokens = model.pos_embed.shape[-2] - num_patches
-    # import ipdb; ipdb.set_trace()
+    
+    # Detect if checkpoint has cls_token
+    checkpoint_seq_len = pos_embed_checkpoint.shape[-2]
+    checkpoint_has_cls = checkpoint_seq_len > int(checkpoint_seq_len ** 0.5) ** 2
+    
+    # Detect if model has cls_token
+    model_seq_len = model.pos_embed.shape[-2]
+    model_has_cls = model_seq_len > num_patches
+    
+    # Determine num_extra_tokens based on checkpoint, not model
+    if checkpoint_has_cls:
+        num_extra_tokens_checkpoint = 1
+    else:
+        num_extra_tokens_checkpoint = 0
+    
+    # Debug prints
+    print(f"DEBUG interpolate_pos_embed:")
+    print(f"  pos_embed_checkpoint.shape: {pos_embed_checkpoint.shape}")
+    print(f"  model.pos_embed.shape: {model.pos_embed.shape}")
+    print(f"  num_patches: {num_patches}")
+    print(f"  checkpoint_has_cls: {checkpoint_has_cls}, model_has_cls: {model_has_cls}")
+    print(f"  num_extra_tokens_checkpoint: {num_extra_tokens_checkpoint}")
+    
     # height (== width) for the checkpoint position embedding
-    orig_size = int((pos_embed_checkpoint.shape[-2] - num_extra_tokens) ** 0.5)
+    orig_size = int((pos_embed_checkpoint.shape[-2] - num_extra_tokens_checkpoint) ** 0.5)
     # height (== width) for the new position embedding
     new_size = int(num_patches ** 0.5)
     # class_token and dist_token are kept unchanged
     if orig_size != new_size:
         print("Position interpolate from %dx%d to %dx%d" % (orig_size, orig_size, new_size, new_size))
-        extra_tokens = pos_embed_checkpoint[:, :num_extra_tokens]
+        extra_tokens = pos_embed_checkpoint[:, :num_extra_tokens_checkpoint]
+        print(f"  extra_tokens.shape: {extra_tokens.shape}")
         # only the position tokens are interpolated
-        pos_tokens = pos_embed_checkpoint[:, num_extra_tokens:]
+        pos_tokens = pos_embed_checkpoint[:, num_extra_tokens_checkpoint:]
+        print(f"  pos_tokens.shape before reshape: {pos_tokens.shape}")
+        print(f"  Trying to reshape to: [-1, {orig_size}, {orig_size}, {embedding_size}]")
         pos_tokens = pos_tokens.reshape(-1, orig_size, orig_size, embedding_size).permute(0, 3, 1, 2)
         pos_tokens = torch.nn.functional.interpolate(
             pos_tokens, size=(new_size, new_size), mode='bicubic', align_corners=False)
         pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(1, 2)
-        new_pos_embed = torch.cat((extra_tokens, pos_tokens), dim=1)
+        print(f"  pos_tokens.shape after interpolation: {pos_tokens.shape}")
+        
+        # Only concatenate cls_token if model uses it
+        if model_has_cls and checkpoint_has_cls:
+            new_pos_embed = torch.cat((extra_tokens, pos_tokens), dim=1)
+        elif not model_has_cls and checkpoint_has_cls:
+            # Checkpoint has cls but model doesn't - only use interpolated pos tokens
+            new_pos_embed = pos_tokens
+        elif model_has_cls and not checkpoint_has_cls:
+            # Model needs cls but checkpoint doesn't have it - initialize new cls_token
+            new_cls_token = torch.zeros(1, 1, embedding_size)
+            new_pos_embed = torch.cat((new_cls_token, pos_tokens), dim=1)
+        else:
+            # Neither has cls_token
+            new_pos_embed = pos_tokens
+        
+        print(f"  new_pos_embed.shape: {new_pos_embed.shape}")
         state_dict['pos_embed'] = new_pos_embed

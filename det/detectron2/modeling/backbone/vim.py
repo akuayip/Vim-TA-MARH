@@ -97,11 +97,11 @@ class VisionMambaDet(VisionMamba, Backbone):
 
             state_dict = torch.load(pretrained, map_location="cpu")
             state_dict_model = state_dict["model"]
-            state_dict_model.pop("head.weight")
-            state_dict_model.pop("head.bias")
-            # pop rope
-            state_dict_model.pop("rope.freqs_cos")
-            state_dict_model.pop("rope.freqs_sin")
+            state_dict_model.pop("head.weight", None)
+            state_dict_model.pop("head.bias", None)
+            # pop rope (safe pop - ignore if not exist)
+            state_dict_model.pop("rope.freqs_cos", None)
+            state_dict_model.pop("rope.freqs_sin", None)
 
             if self.patch_embed.patch_size[-1] != state_dict["model"]["patch_embed.proj.weight"].shape[-1]:
                 state_dict_model.pop("patch_embed.proj.weight")
