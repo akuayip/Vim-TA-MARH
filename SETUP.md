@@ -9,10 +9,11 @@
 - **Storage**: ~20GB for environment and checkpoints
 
 ### Software
-- **OS**: Ubuntu 20.04/22.04 or similar Linux distribution
+- **OS**: Ubuntu 20.04/22.04 or similar Linux distribution (or Windows with WSL2)
 - **NVIDIA Driver**: ≥ 520.61.05 (compatible with CUDA 11.8)
 - **CUDA**: 11.8 (compilation tools required)
 - **Python**: 3.9.x
+- **Package Manager**: uv (recommended), conda, or pip
 
 ## Tested Environment Specifications
 
@@ -48,7 +49,20 @@ nvcc --version  # verify
 
 ### 2. Environment Setup
 
-**Option A: Conda (Recommended)**
+**Option A: uv (Recommended - Fastest)**
+```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# or on Windows: powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Create environment with Python 3.9
+cd Vim-TA-MARH
+uv venv --python 3.9
+source .venv/bin/activate  # Linux/WSL
+# or: .venv\Scripts\activate  # Windows PowerShell
+```
+
+**Option B: Conda**
 ```bash
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 bash Miniconda3-latest-Linux-x86_64.sh
@@ -56,7 +70,7 @@ conda create -n vimdet python=3.9 -y
 conda activate vimdet
 ```
 
-**Option B: Python venv (No Conda)**
+**Option C: Python venv**
 ```bash
 sudo apt install python3.9 python3.9-venv python3.9-dev -y
 cd ~/Vim-TA-MARH
@@ -70,20 +84,24 @@ source venv/bin/activate
 # Clone repo (if needed)
 git clone <your-repo-url> Vim-TA-MARH && cd Vim-TA-MARH
 
+# === Using uv (Fastest) ===
 # PyTorch + CUDA 11.8
-pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 --index-url https://download.pytorch.org/whl/cu118
+uv pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 --index-url https://download.pytorch.org/whl/cu118
 
 # Core dependencies (NumPy <2.0 critical!)
-pip install "numpy<2.0" opencv-python timm einops fvcore pycocotools matplotlib scipy Pillow packaging ninja
+uv pip install "numpy<2.0" opencv-python timm einops fvcore pycocotools matplotlib scipy Pillow packaging ninja
 
 # Mamba SSM (needs --no-build-isolation for CUDA compilation)
-cd mamba-1p1p1 && pip install -e . --no-build-isolation && cd ..
+cd mamba-1p1p1 && uv pip install -e . --no-build-isolation && cd ..
 
 # Causal Conv1D (needs --no-build-isolation for CUDA compilation)
-cd causal-conv1d && pip install -e . --no-build-isolation && cd ..
+cd causal-conv1d && uv pip install -e . --no-build-isolation && cd ..
 
 # Detectron2 (needs --no-build-isolation)
-cd det && pip install -e . --no-build-isolation && cd ..
+cd det && uv pip install -e . --no-build-isolation && cd ..
+
+# === Using pip (Standard) ===
+# Replace 'uv pip install' with 'pip install' in all commands above
 ```
 
 ### 4. Verify Installation
@@ -111,7 +129,9 @@ det/datasets/coco/
 
 ```bash
 # Activate environment
-conda activate vimdet  # or: source venv/bin/activate
+source .venv/bin/activate  # uv
+# or: conda activate vimdet  # conda
+# or: source venv/bin/activate  # venv
 
 # Run training
 cd det
@@ -134,10 +154,11 @@ tail -f work_dirs/experiment_name/log.txt
 
 | Issue | Solution |
 |-------|----------|
-| NumPy 2.0 error | `pip install "numpy<2.0"` |
+| NumPy 2.0 error | `uv pip install "numpy<2.0"` or `pip install "numpy<2.0"` |
 | CUDA OOM | Reduce `SOLVER.IMS_PER_BATCH` to 1 |
 | Mamba build fails | Check `nvcc --version`, ensure CUDA in PATH |
 | Import errors | Verify all 3 source packages installed: mamba_ssm, causal_conv1d, detectron2 |
+| uv not found | Run install script again or add `~/.cargo/bin` to PATH |
 
 ---
 
@@ -148,16 +169,23 @@ tail -f work_dirs/experiment_name/log.txt
 export PATH=/usr/local/cuda-11.8/bin:$PATH
 export LD_LIBRARY_PATH=/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH
 
-# Conda
+# Install uv (Recommended)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.cargo/env
+cd ~/Vim-TA-MARH && uv venv --python 3.9 && source .venv/bin/activate
+
+# OR Conda
 conda create -n vimdet python=3.9 -y && conda activate vimdet
 
 # OR venv
 python3.9 -m venv ~/venv && source ~/venv/bin/activate
 
-# Install all
-pip install torch==2.1.1 torchvision==0.16.1 --index-url https://download.pytorch.org/whl/cu118
-pip install "numpy<2.0" opencv-python timm einops fvcore pycocotools ninja packaging
-cd ~/Vim-TA-MARH && cd mamba-1p1p1 && pip install -e . --no-build-isolation && cd ../causal-conv1d && pip install -e . --no-build-isolation && cd ../det && pip install -e . --no-build-isolation
+# Install all (with uv - fastest)
+uv pip install torch==2.1.1 torchvision==0.16.1 --index-url https://download.pytorch.org/whl/cu118
+uv pip install "numpy<2.0" opencv-python timm einops fvcore pycocotools ninja packaging
+cd ~/Vim-TA-MARH && cd mamba-1p1p1 && uv pip install -e . --no-build-isolation && cd ../causal-conv1d && uv pip install -e . --no-build-isolation && cd ../det && uv pip install -e . --no-build-isolation
+
+# Or replace 'uv pip' with 'pip' if not using uv
 
 # Run in tmux
 tmux new -s train
@@ -167,4 +195,4 @@ python tools/train_net.py --config-file ...
 
 ---
 
-**Key Notes**: NumPy must be <2.0 | CUDA 11.8 required | Install mamba/causal-conv1d/detectron2 from source
+**Key Notes**: Use `uv` for fastest installation | NumPy must be <2.0 | CUDA 11.8 required | Install mamba/causal-conv1d/detectron2 from source
