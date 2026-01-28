@@ -151,7 +151,9 @@ ITERS_PER_EPOCH = 636
 EPOCHS = 100  # BASELINE EPOCHS
 train.max_iter = ITERS_PER_EPOCH * EPOCHS  # 63600 iterations
 
-train.checkpointer.period = ITERS_PER_EPOCH  # Save checkpoint every epoch
+# Save only final checkpoint
+train.checkpointer.period = train.max_iter  # Only save at the end
+train.checkpointer.max_to_keep = 1  # Keep only the final model
 train.eval_period = ITERS_PER_EPOCH  # Evaluate every epoch
 train.log_period = 50
 
