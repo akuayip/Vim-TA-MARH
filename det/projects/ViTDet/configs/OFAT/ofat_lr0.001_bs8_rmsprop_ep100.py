@@ -32,6 +32,11 @@ from detectron2.data import transforms as T
 from detectron2.evaluation import COCOEvaluator
 from omegaconf import OmegaConf
 
+# Register custom dataset
+import sys
+sys.path.append('.')
+import register_custom_coco 
+
 
 # Data Augmentation
 image_size = 640 

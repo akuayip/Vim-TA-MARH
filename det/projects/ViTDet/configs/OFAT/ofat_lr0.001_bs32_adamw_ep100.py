@@ -18,6 +18,11 @@ from detectron2.config import LazyCall as L
 from detectron2.solver import WarmupParamScheduler
 from detectron2.modeling.backbone.vim import get_vim_lr_decay_rate
 
+# Register custom dataset
+import sys
+sys.path.append('.')
+import register_custom_coco 
+
 # ============================================================================
 # DATA CONFIGURATION  
 # ============================================================================

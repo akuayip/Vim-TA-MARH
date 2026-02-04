@@ -31,6 +31,10 @@ from detectron2.data import transforms as T
 from detectron2.evaluation import COCOEvaluator
 from omegaconf import OmegaConf
 
+# Register custom dataset
+import sys
+sys.path.append('.')
+import register_custom_coco 
 
 # Data Augmentation
 image_size = 640  # Match dataset image size (640x640)
@@ -41,6 +45,7 @@ dataloader.train = L(build_detection_train_loader)(
         is_train=True,
         augmentations=[
             L(T.RandomFlip)(horizontal=True),
+            # L(T.ResizeShortestEdge)(
             #     short_edge_length=(480, 560, 640),
             #     max_size=640,
             #     sample_style="choice",
@@ -58,7 +63,7 @@ dataloader.test = L(build_detection_test_loader)(
     mapper=L(DatasetMapper)(
         is_train=False,
         augmentations=[
-            # L(T.ResizeShortestEdge)(short_edge_length=640, max_size=640),
+            L(T.ResizeShortestEdge)(short_edge_length=640, max_size=640),
         ],
         image_format="RGB",
     ),
@@ -94,7 +99,7 @@ model.roi_heads.pop("mask_head", None)
 
 model.roi_heads.update(
     _target_=CascadeROIHeads,
-    num_classes=1,
+    num_classes=1,  # Single foreground class: head
     box_heads=[
         L(FastRCNNConvFCHead)(
             input_shape=ShapeSpec(channels=256, height=7, width=7),
@@ -110,9 +115,9 @@ model.roi_heads.update(
             test_score_thresh=0.05,
             box2box_transform=L(Box2BoxTransform)(weights=(w1, w1, w2, w2)),
             cls_agnostic_bbox_reg=True,
-            num_classes=1,
+            num_classes=1,  # Single class: head
         )
-        for (w1, w2) in [(10, 5), (20, 10), (30, 15)]
+        for (w1, w2) in [(10, 5), (20, 10), (30, 15)]   
     ],
     proposal_matchers=[
         L(Matcher)(thresholds=[th], labels=[0, 1], allow_low_quality_matches=False)
@@ -121,12 +126,12 @@ model.roi_heads.update(
 )
 
 # ViM-Tiny backbone configuration
-model.backbone.net.img_size = 640  
+model.backbone.net.img_size = 640  # Match dataset image size  
 model.backbone.net.embed_dim = 192
 model.backbone.net.depth = 24
-model.backbone.net.pretrained = "ckpts/vim_tiny_pretrained.pth"  
-model.backbone.net.freeze_backbone = True  
-model.backbone.square_pad = 640  
+model.backbone.net.pretrained = "ckpts/vim_tiny_pretrained.pth"  # PRETRAINED WEIGHTS
+model.backbone.net.freeze_backbone = True  # FREEZE BACKBONE for fine-tuningxxxx
+model.backbone.square_pad = 640  # Match img_size
 
 # ============================================================================
 # TRAINING CONFIGURATION
@@ -134,7 +139,7 @@ model.backbone.square_pad = 640
 train = model_zoo.get_config("common/train.py").train
 train.amp.enabled = True
 train.ddp.fp16_compression = True
-train.init_checkpoint = ""  
+train.init_checkpoint = ""  # We load pretrained weights via model.backbone.net.pretrained
 
 # Calculate iterations for 100 epochs
 # Dataset: 1271 training images
@@ -143,13 +148,13 @@ train.init_checkpoint = ""
 # Total iterations = 636 * 100 = 63600
 
 ITERS_PER_EPOCH = 636
-EPOCHS = 100  
-train.max_iter = ITERS_PER_EPOCH * EPOCHS 
+EPOCHS = 100  # BASELINE EPOCHS
+train.max_iter = ITERS_PER_EPOCH * EPOCHS  # 63600 iterations
 
 # Save only final checkpoint
-train.checkpointer.period = train.max_iter 
-train.checkpointer.max_to_keep = 1  
-train.eval_period = ITERS_PER_EPOCH  
+train.checkpointer.period = train.max_iter  # Only save at the end
+train.checkpointer.max_to_keep = 1  # Keep only the final model
+train.eval_period = ITERS_PER_EPOCH  # Evaluate every epoch
 train.log_period = 50
 
 # Output directory
@@ -159,8 +164,8 @@ train.output_dir = "./work_dirs/ofat_baseline_lr0.001_bs8_adamw_ep100"
 # LEARNING RATE SCHEDULE
 # ============================================================================
 # MultiStep LR: Decay at 70% and 90% of training
-milestone_1 = int(0.7 * train.max_iter)  
-milestone_2 = int(0.9 * train.max_iter)  
+milestone_1 = int(0.7 * train.max_iter)  # At 70% (epoch 70)
+milestone_2 = int(0.9 * train.max_iter)  # At 90% (epoch 90)
 
 lr_multiplier = L(WarmupParamScheduler)(
     scheduler=L(MultiStepParamScheduler)(
@@ -168,15 +173,15 @@ lr_multiplier = L(WarmupParamScheduler)(
         milestones=[milestone_1, milestone_2],
         num_updates=train.max_iter,
     ),
-    warmup_length=500 / train.max_iter,  
+    warmup_length=500 / train.max_iter,  # 500 iterations warmup
     warmup_factor=0.001,
 )
 
 # ============================================================================
 # OPTIMIZER
 # ============================================================================
-optimizer = model_zoo.get_config("common/optim.py").AdamW 
-optimizer.lr = 0.001 
+optimizer = model_zoo.get_config("common/optim.py").AdamW  # BASELINE OPTIMIZER
+optimizer.lr = 0.001  # BASELINE LEARNING RATE (1e-3)
 
 # Layer-wise LR decay for ViM backbone (only applies to non-frozen layers)
 optimizer.params.lr_factor_func = partial(
