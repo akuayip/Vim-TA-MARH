@@ -177,3 +177,4 @@ zlib                       1.3.1               hb25bd0a_0
 
 Driver Version: 590.48.01      CUDA Version: 13.1 
 torch cuda: 11.8
+Python 3.10.13
