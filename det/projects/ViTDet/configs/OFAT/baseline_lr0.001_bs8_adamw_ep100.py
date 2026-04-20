@@ -54,7 +54,7 @@ dataloader.train = L(build_detection_train_loader)(
         image_format="RGB",
         use_instance_mask=False,  # No masks, only bounding boxes
     ),
-    total_batch_size=2,  # Reduced to 2 to fit in 8GB GPU during training
+    total_batch_size=3,  # Reduced to 2 to fit in 8GB GPU during training
     num_workers=4,
 )
 
@@ -72,6 +72,7 @@ dataloader.test = L(build_detection_test_loader)(
 
 dataloader.evaluator = L(COCOEvaluator)(
     dataset_name="${..test.dataset.names}",
+    tasks=("bbox",)
 )
 
 # ============================================================================
@@ -147,7 +148,7 @@ train.init_checkpoint = ""  # We load pretrained weights via model.backbone.net.
 # Iterations per epoch = 1271 / 2 ≈ 636
 # Total iterations = 636 * 100 = 63600
 
-ITERS_PER_EPOCH = 636
+ITERS_PER_EPOCH = 424
 EPOCHS = 100  # BASELINE EPOCHS
 train.max_iter = ITERS_PER_EPOCH * EPOCHS  # 63600 iterations
 
@@ -158,11 +159,11 @@ train.eval_period = ITERS_PER_EPOCH  # Evaluate every epoch
 train.log_period = 50
 
 # Output directory
-train.output_dir = "./work_dirs/ofat_baseline_lr0.001_bs8_adamw_ep100"
+train.output_dir = "./work_dirs/testi_4"
 
 # ============================================================================
 # LEARNING RATE SCHEDULE
-# ============================================================================
+# =========================================ts===================================
 # MultiStep LR: Decay at 70% and 90% of training
 milestone_1 = int(0.7 * train.max_iter)  # At 70% (epoch 70)
 milestone_2 = int(0.9 * train.max_iter)  # At 90% (epoch 90)
@@ -181,7 +182,7 @@ lr_multiplier = L(WarmupParamScheduler)(
 # OPTIMIZER
 # ============================================================================
 optimizer = model_zoo.get_config("common/optim.py").AdamW  # BASELINE OPTIMIZER
-optimizer.lr = 0.001  # BASELINE LEARNING RATE (1e-3)
+optimizer.lr = 0.00001  # BASELINE LEARNING RATE (1e-3)
 
 # Layer-wise LR decay for ViM backbone (only applies to non-frozen layers)
 optimizer.params.lr_factor_func = partial(
