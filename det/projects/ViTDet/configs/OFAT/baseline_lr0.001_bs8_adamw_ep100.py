@@ -45,16 +45,17 @@ dataloader.train = L(build_detection_train_loader)(
         is_train=True,
         augmentations=[
             L(T.RandomFlip)(horizontal=True),
-            # L(T.ResizeShortestEdge)(
-            #     short_edge_length=(480, 560, 640),
-            #     max_size=640,
-            #     sample_style="choice",
-            # ),
+            L(T.ResizeShortestEdge)(
+                short_edge_length=(480, 560, 640),
+                max_size=640,
+                sample_style="choice",
+            ),
+            L(T.RandomBrightness)(intensity_min=0.9, intensity_max=1.1),
+            L(T.RandomContrast)(intensity_min=0.9, intensity_max=1.1),
+            L(T.RandomSaturation)(intensity_min=0.9, intensity_max=1.1),
         ],
-        image_format="RGB",
-        use_instance_mask=False,  # No masks, only bounding boxes
     ),
-    total_batch_size=3,  # Reduced to 2 to fit in 8GB GPU during training
+    total_batch_size=8,  # BASELINE BATCH SIZE
     num_workers=4,
 )
 
@@ -131,8 +132,12 @@ model.backbone.net.img_size = 640  # Match dataset image size
 model.backbone.net.embed_dim = 192
 model.backbone.net.depth = 24
 model.backbone.net.pretrained = "ckpts/vim_tiny_pretrained.pth"  # PRETRAINED WEIGHTS
-model.backbone.net.freeze_backbone = True  # FREEZE BACKBONE for fine-tuningxxxx
+model.backbone.net.freeze_backbone = True  # FREEZE BACKBONE - only train neck and head
 model.backbone.square_pad = 640  # Match img_size
+
+# Explicitly freeze backbone parameters to prevent gradient updates
+for param in model.backbone.parameters():
+    param.requires_grad = False
 
 # ============================================================================
 # TRAINING CONFIGURATION
@@ -144,11 +149,11 @@ train.init_checkpoint = ""  # We load pretrained weights via model.backbone.net.
 
 # Calculate iterations for 100 epochs
 # Dataset: 1271 training images
-# Batch size: 2 (reduced to fit in 8GB GPU with Cascade R-CNN)
-# Iterations per epoch = 1271 / 2 ≈ 636
-# Total iterations = 636 * 100 = 63600
+# Batch size: 8 (BASELINE)
+# Iterations per epoch = 1271 / 8 ≈ 159
+# Total iterations = 159 * 100 = 15900
 
-ITERS_PER_EPOCH = 424
+ITERS_PER_EPOCH = 159
 EPOCHS = 100  # BASELINE EPOCHS
 train.max_iter = ITERS_PER_EPOCH * EPOCHS  # 63600 iterations
 
@@ -182,7 +187,7 @@ lr_multiplier = L(WarmupParamScheduler)(
 # OPTIMIZER
 # ============================================================================
 optimizer = model_zoo.get_config("common/optim.py").AdamW  # BASELINE OPTIMIZER
-optimizer.lr = 0.00001  # BASELINE LEARNING RATE (1e-3)
+optimizer.lr = 0.001  # BASELINE LEARNING RATE (1e-3)
 
 # Layer-wise LR decay for ViM backbone (only applies to non-frozen layers)
 optimizer.params.lr_factor_func = partial(

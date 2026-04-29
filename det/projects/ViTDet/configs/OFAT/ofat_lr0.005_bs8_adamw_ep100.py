@@ -45,11 +45,14 @@ dataloader.train = L(build_detection_train_loader)(
         is_train=True,
         augmentations=[
             L(T.RandomFlip)(horizontal=True),
-            # L(T.ResizeShortestEdge)(
-            #     short_edge_length=(480, 560, 640),
-            #     max_size=640,
-            #     sample_style="choice",
-            # ),
+            L(T.ResizeShortestEdge)(
+                short_edge_length=(480, 560, 640),
+                max_size=640,
+                sample_style="choice",
+            ),
+            L(T.RandomBrightness)(intensity_min=0.9, intensity_max=1.1),
+            L(T.RandomContrast)(intensity_min=0.9, intensity_max=1.1),
+            L(T.RandomSaturation)(intensity_min=0.9, intensity_max=1.1),
         ],
         image_format="RGB",
         use_instance_mask=False,  
@@ -63,7 +66,7 @@ dataloader.test = L(build_detection_test_loader)(
     mapper=L(DatasetMapper)(
         is_train=False,
         augmentations=[
-            # L(T.ResizeShortestEdge)(short_edge_length=640, max_size=640),
+            L(T.ResizeShortestEdge)(short_edge_length=640, max_size=640),
         ],
         image_format="RGB",
     ),
@@ -130,9 +133,13 @@ model.roi_heads.update(
 model.backbone.net.img_size = 640  
 model.backbone.net.embed_dim = 192
 model.backbone.net.depth = 24
-model.backbone.net.pretrained = "ckpts/vim_tiny_pretrained.pth"  
-model.backbone.net.freeze_backbone = True 
-model.backbone.square_pad = 640  
+model.backbone.net.pretrained = "ckpts/vim_tiny_pretrained.pth"
+model.backbone.net.freeze_backbone = True
+model.backbone.square_pad = 640
+
+# Explicitly freeze backbone parameters to prevent gradient updates
+for param in model.backbone.parameters():
+    param.requires_grad = False  
 
 # ============================================================================
 # TRAINING CONFIGURATION
